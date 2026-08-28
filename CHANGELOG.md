@@ -5,10 +5,17 @@ to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Changed
+- Go 1.27.0 toolchain; `github.com/go-chi/chi/v5` v5.3.2,
+  `prometheus/client_golang` v1.24.1; `golang:1.27.0-alpine` build image;
+  CI actions bumped (`checkout@v7`, `setup-go@v7`, `golangci-lint-action@v9`).
+
 ### Security
 - Bump `golang.org/x/text` to v0.41.0 (GO-2026-5970 — reachable via pgx SCRAM
-  auth) and pin the toolchain to `go1.26.7`, which carries the fixed standard
-  library. `govulncheck` is clean.
+  auth). Combined with the Go 1.27 toolchain, `govulncheck` reports no
+  vulnerabilities.
+- CI `docker` job now boots the built image against a Postgres service and
+  checks `/readyz` + `/version`.
 
 ## [0.2.0] - 2026-08-28
 

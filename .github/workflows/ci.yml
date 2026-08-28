@@ -32,10 +32,10 @@ jobs:
     env:
       TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/ledger?sslmode=disable
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.26.7"
+          go-version: "1.27.0"
           cache: true
       - run: go build ./...
       - run: go vet ./...
@@ -46,21 +46,21 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.26.7"
-      - uses: golangci/golangci-lint-action@v8
+          go-version: "1.27.0"
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
 
   vuln:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.26.7"
+          go-version: "1.27.0"
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   docker:
@@ -80,7 +80,7 @@ jobs:
           --health-timeout 3s
           --health-retries 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build image
         run: |
           docker build \
