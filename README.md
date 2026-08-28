@@ -116,11 +116,21 @@ and never goes negative**. CI runs the full suite with `-race` against a
 Postgres service container, plus `golangci-lint`, `govulncheck`, and a
 container smoke test on every push.
 
+## Load
+
+[`loadtest/`](loadtest/) drives a running instance with concurrent transfers
+and checks balance conservation after every run. On a laptop (single instance,
+Postgres in Docker) it sustains **~2,750 transfers/sec** with **zero errors and
+zero balance drift** across ~175k transfers; the write path is contention-bound
+on Postgres, not CPU-bound, and the service holds at ~12 goroutines / ~38 MB
+RSS. Full numbers and analysis in [BENCHMARKS.md](BENCHMARKS.md).
+
 ## Layout
 
 ```
 api/                   OpenAPI 3.1 spec (embedded + served)
 cmd/ledger/            entrypoint: config, pool, migrate, serve, graceful shutdown
+loadtest/              concurrent-transfer load generator + balance-conservation check
 internal/config/       env configuration
 internal/money/        integer-minor-unit money type + parsing
 internal/store/        pgx pool + embedded SQL migrator

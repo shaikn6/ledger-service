@@ -5,6 +5,11 @@ to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+- `loadtest/` — concurrent-transfer load generator with a post-run
+  balance-conservation check. `BENCHMARKS.md` records the results (~2,750 tx/s
+  on a laptop, zero errors, zero drift; write path is Postgres-contention-bound).
+
 ### Changed
 - Go 1.27.0 toolchain; `github.com/go-chi/chi/v5` v5.3.2,
   `prometheus/client_golang` v1.24.1; `golang:1.27.0-alpine` build image;
