@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. This project adheres
 to [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Security
+- Bump `golang.org/x/text` to v0.41.0 (GO-2026-5970 — reachable via pgx SCRAM
+  auth) and pin the toolchain to `go1.26.7`, which carries the fixed standard
+  library. `govulncheck` is clean.
+
 ## [0.2.0] - 2026-08-28
 
 ### Added
