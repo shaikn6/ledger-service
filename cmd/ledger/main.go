@@ -17,6 +17,15 @@ import (
 	"github.com/shaikn6/ledger-service/internal/store"
 )
 
+// Build metadata, injected at link time:
+//
+//	go build -ldflags "-X main.version=1.2.3 -X main.commit=$(git rev-parse --short HEAD) -X main.date=$(date -u +%FT%TZ)"
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
 	if err := run(); err != nil {
 		slog.Error("fatal", "err", err)
@@ -36,7 +45,10 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := store.Open(ctx, cfg.DatabaseURL)
+	pool, err := store.Open(ctx, cfg.DatabaseURL, store.PoolConfig{
+		MaxConns: cfg.DBMaxConns,
+		MinConns: cfg.DBMinConns,
+	})
 	if err != nil {
 		return err
 	}
@@ -47,16 +59,21 @@ func run() error {
 	}
 	log.Info("migrations applied")
 
-	handlers := &httpapi.Handlers{Svc: ledger.New(pool)}
+	handlers := &httpapi.Handlers{
+		Svc:   ledger.New(pool),
+		Build: httpapi.BuildInfo{Version: version, Commit: commit, Date: date},
+	}
+	router := httpapi.NewRouter(handlers, httpapi.Options{Logger: log, AuthTokens: cfg.APITokens})
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           http.TimeoutHandler(httpapi.NewRouter(handlers, log), cfg.RequestTimeout, `{"error":{"code":"timeout","message":"request timed out"}}`),
+		Handler:           http.TimeoutHandler(router, cfg.RequestTimeout, `{"error":{"code":"timeout","message":"request timed out"}}`),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	errCh := make(chan error, 1)
 	go func() {
-		log.Info("listening", "addr", cfg.Addr)
+		log.Info("listening", "addr", cfg.Addr, "version", version, "auth", len(cfg.APITokens) > 0)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}

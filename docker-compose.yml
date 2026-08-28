@@ -14,11 +14,16 @@ services:
       retries: 20
 
   ledger:
-    build: .
+    build:
+      context: .
+      args:
+        VERSION: local
     environment:
       DATABASE_URL: postgres://ledger:ledger@db:5432/ledger?sslmode=disable
       LEDGER_ADDR: ":8080"
       LOG_LEVEL: info
+      # Uncomment to require a bearer token on /v1 routes:
+      # LEDGER_API_TOKENS: "dev-token-1,dev-token-2"
     ports:
       - "8080:8080"
     depends_on:

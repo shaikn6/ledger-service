@@ -2,14 +2,43 @@ package ledger
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const maxInt64 = int64(^uint64(0) >> 1)
+
+const accountByIDSQL = `
+	SELECT id, name, currency, balance, allow_overdraft, created_at
+	FROM accounts WHERE id = $1`
+
+const transferSelect = `
+	SELECT id, idempotency_key, debit_account_id, credit_account_id, amount, currency, status, reverses_transfer_id, created_at
+	FROM transfers`
+
+const postingSelect = `
+	SELECT id, transfer_id, account_id, direction, amount, balance_after, created_at
+	FROM postings`
+
+var currencyRE = regexp.MustCompile(`^[A-Z]{3}$`)
+
+func validCurrency(c string) bool { return currencyRE.MatchString(c) }
+
+func clampLimit(limit int) int {
+	if limit <= 0 || limit > 200 {
+		return 50
+	}
+	return limit
+}
 
 // isRetryable reports whether err is a Postgres serialization failure (40001)
 // or deadlock (40P01) — both safe to retry from the top of the transaction.
@@ -21,19 +50,7 @@ func isRetryable(err error) bool {
 	return false
 }
 
-const accountByIDSQL = `
-	SELECT id, name, currency, balance, allow_overdraft, created_at
-	FROM accounts WHERE id = $1`
-
-const transferSelect = `
-	SELECT id, idempotency_key, debit_account_id, credit_account_id, amount, currency, status, created_at
-	FROM transfers`
-
-var currencyRE = regexp.MustCompile(`^[A-Z]{3}$`)
-
-func validCurrency(c string) bool { return currencyRE.MatchString(c) }
-
-// row is satisfied by both pgx.Row and the row returned from a pool/tx query.
+// row is satisfied by both pgx.Row and pgx.Rows.
 type row interface {
 	Scan(dest ...any) error
 }
@@ -49,12 +66,30 @@ func scanAccount(r row) (Account, error) {
 
 func scanTransfer(r row) (Transfer, error) {
 	var t Transfer
+	var reverses pgtype.UUID
 	err := r.Scan(&t.ID, &t.IdempotencyKey, &t.DebitAccountID, &t.CreditAccountID,
-		&t.Amount, &t.Currency, &t.Status, &t.CreatedAt)
+		&t.Amount, &t.Currency, &t.Status, &reverses, &t.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Transfer{}, ErrTransferNotFound
 	}
+	if err == nil && reverses.Valid {
+		id := uuid.UUID(reverses.Bytes)
+		t.ReversesTransferID = &id
+	}
 	return t, err
+}
+
+func scanPostings(rows pgx.Rows) ([]Posting, error) {
+	defer rows.Close()
+	var out []Posting
+	for rows.Next() {
+		var p Posting
+		if err := rows.Scan(&p.ID, &p.TransferID, &p.AccountID, &p.Direction, &p.Amount, &p.BalanceAfter, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
 }
 
 func (s *Service) transferByKey(ctx context.Context, key string) (Transfer, error) {
@@ -83,11 +118,13 @@ func invalid(msg string) error {
 	return fmt.Errorf("%w: %s", ErrValidation, msg)
 }
 
-func sameRequest(t Transfer, p NewTransferParams) bool {
-	return t.DebitAccountID == p.DebitAccountID &&
-		t.CreditAccountID == p.CreditAccountID &&
-		t.Amount == p.Amount &&
-		t.Currency == p.Currency
+// sameSpec reports whether an existing transfer represents the same request as
+// spec — used to tell an idempotent replay from a key collision.
+func sameSpec(t Transfer, spec transferSpec) bool {
+	return t.DebitAccountID == spec.debit &&
+		t.CreditAccountID == spec.credit &&
+		t.Amount == spec.amount &&
+		t.Currency == spec.currency
 }
 
 // orderPair returns the two ids sorted so lock acquisition order is
@@ -119,4 +156,49 @@ func applyPosting(ctx context.Context, tx pgx.Tx, transferID, accountID uuid.UUI
 		UPDATE accounts SET balance = $1, version = version + 1 WHERE id = $2`,
 		balanceAfter, accountID)
 	return err
+}
+
+// --- keyset pagination cursor ---
+//
+// A cursor is base64("<RFC3339Nano>|<uuid>"), pointing at the last row of the
+// previous page. The empty cursor means "from the newest row".
+
+func encodeCursor(ts time.Time, id uuid.UUID) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(ts.UTC().Format(time.RFC3339Nano) + "|" + id.String()))
+}
+
+func decodeCursor(cursor string) (time.Time, uuid.UUID, error) {
+	if cursor == "" {
+		// Sentinel that sorts after every real row under "< (ts, id)".
+		return time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC), uuid.Max, nil
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		return time.Time{}, uuid.Nil, ErrInvalidCursor
+	}
+	tsStr, idStr, ok := strings.Cut(string(raw), "|")
+	if !ok {
+		return time.Time{}, uuid.Nil, ErrInvalidCursor
+	}
+	ts, err := time.Parse(time.RFC3339Nano, tsStr)
+	if err != nil {
+		return time.Time{}, uuid.Nil, ErrInvalidCursor
+	}
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return time.Time{}, uuid.Nil, ErrInvalidCursor
+	}
+	return ts, id, nil
+}
+
+// paginate trims an over-fetched slice (limit+1) to limit and derives the next
+// cursor from the last kept row.
+func paginate[T any](rows []T, limit int, key func(T) (time.Time, uuid.UUID)) Page[T] {
+	p := Page[T]{Data: rows}
+	if len(rows) > limit {
+		p.Data = rows[:limit]
+		ts, id := key(p.Data[len(p.Data)-1])
+		p.NextCursor = encodeCursor(ts, id)
+	}
+	return p
 }

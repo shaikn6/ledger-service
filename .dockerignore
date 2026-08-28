@@ -1,0 +1,11 @@
+.git
+.github
+bin
+out
+*.md
+!README.md
+coverage.out
+*.test
+.env
+docker-compose.yml
+Makefile

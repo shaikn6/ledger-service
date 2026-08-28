@@ -18,14 +18,27 @@ var migrationFS embed.FS
 // Pool is the subset of *pgxpool.Pool the rest of the service depends on.
 type Pool = *pgxpool.Pool
 
+// PoolConfig tunes the connection pool. A zero value is valid and uses pgx
+// defaults.
+type PoolConfig struct {
+	MaxConns int32
+	MinConns int32
+}
+
 // Open creates a connection pool and verifies connectivity with a ping.
-func Open(ctx context.Context, databaseURL string) (Pool, error) {
+func Open(ctx context.Context, databaseURL string, pc PoolConfig) (Pool, error) {
 	cfg, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse database url: %w", err)
 	}
 	cfg.MaxConnLifetime = time.Hour
 	cfg.HealthCheckPeriod = 30 * time.Second
+	if pc.MaxConns > 0 {
+		cfg.MaxConns = pc.MaxConns
+	}
+	if pc.MinConns > 0 {
+		cfg.MinConns = pc.MinConns
+	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

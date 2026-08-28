@@ -22,7 +22,7 @@ func setup(t *testing.T) *ledger.Service {
 		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
 	}
 	ctx := context.Background()
-	pool, err := store.Open(ctx, dsn)
+	pool, err := store.Open(ctx, dsn, store.PoolConfig{})
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -257,4 +257,186 @@ func TestCreateAccount_Validation(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected validation error for lowercase currency")
 	}
+}
+
+func TestReverseTransfer_RestoresBalances(t *testing.T) {
+	s := setup(t)
+	ctx := context.Background()
+	src := mkAccount(t, s, "USD", true)
+	dst := mkAccount(t, s, "USD", false)
+
+	orig, err := s.CreateTransfer(ctx, ledger.NewTransferParams{
+		IdempotencyKey: "orig-1", DebitAccountID: src.ID, CreditAccountID: dst.ID,
+		Amount: 4_000, Currency: "USD",
+	})
+	if err != nil {
+		t.Fatalf("CreateTransfer: %v", err)
+	}
+
+	rev, err := s.ReverseTransfer(ctx, orig.ID, "rev-1")
+	if err != nil {
+		t.Fatalf("ReverseTransfer: %v", err)
+	}
+	if rev.ReversesTransferID == nil || *rev.ReversesTransferID != orig.ID {
+		t.Fatalf("reversal not linked to original: %+v", rev)
+	}
+	if rev.DebitAccountID != dst.ID || rev.CreditAccountID != src.ID {
+		t.Fatalf("reversal direction not swapped: %+v", rev)
+	}
+	if got := balance(t, s, src.ID); got != 0 {
+		t.Fatalf("src balance after reversal = %d, want 0", got)
+	}
+	if got := balance(t, s, dst.ID); got != 0 {
+		t.Fatalf("dst balance after reversal = %d, want 0", got)
+	}
+
+	reloaded, err := s.GetTransfer(ctx, orig.ID)
+	if err != nil {
+		t.Fatalf("GetTransfer: %v", err)
+	}
+	if reloaded.Status != "reversed" {
+		t.Fatalf("original status = %q, want reversed", reloaded.Status)
+	}
+}
+
+func TestReverseTransfer_Idempotent(t *testing.T) {
+	s := setup(t)
+	ctx := context.Background()
+	src := mkAccount(t, s, "USD", true)
+	dst := mkAccount(t, s, "USD", false)
+	orig, _ := s.CreateTransfer(ctx, ledger.NewTransferParams{
+		IdempotencyKey: "o", DebitAccountID: src.ID, CreditAccountID: dst.ID, Amount: 100, Currency: "USD",
+	})
+
+	first, err := s.ReverseTransfer(ctx, orig.ID, "rk")
+	if err != nil {
+		t.Fatalf("first reversal: %v", err)
+	}
+	second, err := s.ReverseTransfer(ctx, orig.ID, "rk")
+	if err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	if first.ID != second.ID {
+		t.Fatalf("replay created a second reversal")
+	}
+	if got := balance(t, s, dst.ID); got != 0 {
+		t.Fatalf("replay moved funds again: dst = %d", got)
+	}
+}
+
+func TestReverseTransfer_AlreadyReversed(t *testing.T) {
+	s := setup(t)
+	ctx := context.Background()
+	src := mkAccount(t, s, "USD", true)
+	dst := mkAccount(t, s, "USD", false)
+	orig, _ := s.CreateTransfer(ctx, ledger.NewTransferParams{
+		IdempotencyKey: "o", DebitAccountID: src.ID, CreditAccountID: dst.ID, Amount: 100, Currency: "USD",
+	})
+	if _, err := s.ReverseTransfer(ctx, orig.ID, "r1"); err != nil {
+		t.Fatalf("first reversal: %v", err)
+	}
+	// A new key, but the original is already reversed.
+	if _, err := s.ReverseTransfer(ctx, orig.ID, "r2"); err != ledger.ErrAlreadyReversed {
+		t.Fatalf("err = %v, want ErrAlreadyReversed", err)
+	}
+}
+
+func TestReverseTransfer_CannotReverseAReversal(t *testing.T) {
+	s := setup(t)
+	ctx := context.Background()
+	src := mkAccount(t, s, "USD", true)
+	dst := mkAccount(t, s, "USD", false)
+	orig, _ := s.CreateTransfer(ctx, ledger.NewTransferParams{
+		IdempotencyKey: "o", DebitAccountID: src.ID, CreditAccountID: dst.ID, Amount: 100, Currency: "USD",
+	})
+	rev, err := s.ReverseTransfer(ctx, orig.ID, "r1")
+	if err != nil {
+		t.Fatalf("reversal: %v", err)
+	}
+	if _, err := s.ReverseTransfer(ctx, rev.ID, "r2"); err != ledger.ErrCannotReverseReversal {
+		t.Fatalf("err = %v, want ErrCannotReverseReversal", err)
+	}
+}
+
+func TestListAccounts_Pagination(t *testing.T) {
+	s := setup(t)
+	ctx := context.Background()
+	for i := 0; i < 5; i++ {
+		mkAccount(t, s, "USD", false)
+	}
+	first, err := s.ListAccounts(ctx, 2, "")
+	if err != nil {
+		t.Fatalf("ListAccounts: %v", err)
+	}
+	if len(first.Data) != 2 || first.NextCursor == "" {
+		t.Fatalf("page 1 = %d rows, cursor %q", len(first.Data), first.NextCursor)
+	}
+	second, err := s.ListAccounts(ctx, 2, first.NextCursor)
+	if err != nil {
+		t.Fatalf("ListAccounts page 2: %v", err)
+	}
+	if len(second.Data) != 2 {
+		t.Fatalf("page 2 = %d rows", len(second.Data))
+	}
+	if first.Data[0].ID == second.Data[0].ID {
+		t.Fatalf("pages overlap")
+	}
+
+	if _, err := s.ListAccounts(ctx, 2, "not-a-valid-cursor!!"); err != ledger.ErrInvalidCursor {
+		t.Fatalf("bad cursor err = %v, want ErrInvalidCursor", err)
+	}
+}
+
+func TestListTransfers_FilterByAccount(t *testing.T) {
+	s := setup(t)
+	ctx := context.Background()
+	a := mkAccount(t, s, "USD", true)
+	b := mkAccount(t, s, "USD", true)
+	c := mkAccount(t, s, "USD", true)
+	mustTransfer(t, s, a, b, 100, "t-ab")
+	mustTransfer(t, s, b, c, 100, "t-bc")
+
+	page, err := s.ListTransfers(ctx, &a.ID, 10, "")
+	if err != nil {
+		t.Fatalf("ListTransfers: %v", err)
+	}
+	if len(page.Data) != 1 || page.Data[0].IdempotencyKey != "t-ab" {
+		t.Fatalf("filter by account a returned %+v", page.Data)
+	}
+
+	all, _ := s.ListTransfers(ctx, nil, 10, "")
+	if len(all.Data) != 2 {
+		t.Fatalf("unfiltered returned %d transfers", len(all.Data))
+	}
+}
+
+func TestTransferPostings(t *testing.T) {
+	s := setup(t)
+	ctx := context.Background()
+	a := mkAccount(t, s, "USD", true)
+	b := mkAccount(t, s, "USD", true)
+	tr := mustTransfer(t, s, a, b, 700, "tp")
+
+	postings, err := s.TransferPostings(ctx, tr.ID)
+	if err != nil {
+		t.Fatalf("TransferPostings: %v", err)
+	}
+	if len(postings) != 2 {
+		t.Fatalf("expected 2 postings, got %d", len(postings))
+	}
+	if postings[0].Direction != "credit" || postings[1].Direction != "debit" {
+		t.Fatalf("postings not ordered by direction: %+v", postings)
+	}
+}
+
+func mustTransfer(t *testing.T, s *ledger.Service, from, to ledger.Account, amount int64, key string) ledger.Transfer {
+	t.Helper()
+	tr, err := s.CreateTransfer(context.Background(), ledger.NewTransferParams{
+		IdempotencyKey: key, DebitAccountID: from.ID, CreditAccountID: to.ID,
+		Amount: amount, Currency: from.Currency,
+	})
+	if err != nil {
+		t.Fatalf("mustTransfer(%s): %v", key, err)
+	}
+	return tr
 }

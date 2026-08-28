@@ -1,29 +1,51 @@
 # Security Policy
 
-## Reporting a Vulnerability
+## Supported versions
 
-Please **do not** open a public issue for security vulnerabilities.
+| Version | Supported |
+|---------|-----------|
+| `0.2.x` | ✅ |
+| `< 0.2` | ❌ |
 
-Report privately to **nagizaazs@gmail.com** with a description, reproduction
-steps, and impact. You will get an acknowledgement within 48 hours.
+## Reporting a vulnerability
+
+**Do not open a public issue.**
+
+Report privately to **nagizaazs@gmail.com** (or via GitHub's *Report a
+vulnerability* on the Security tab) with:
+
+- a description and the impact,
+- steps or a script to reproduce,
+- affected version (`GET /version` or the image tag).
+
+You will get an acknowledgement within **48 hours** and a fix or mitigation
+plan within **7 days** for confirmed issues. Coordinated disclosure is
+appreciated; credit will be given unless you prefer otherwise.
 
 ## Security posture
 
-- **No secrets in the repo.** Configuration is environment-only; `DATABASE_URL`
-  carries the database credentials and is never logged.
-- **Structured audit trail.** Every request is logged as one JSON line with a
-  request ID, method, route, status, and latency — never request bodies.
-- **Least-privilege container.** The image is `distroless/static` and runs as a
-  non-root user with no shell.
-- **Input limits.** Request bodies are capped at 1 MiB and unknown JSON fields
-  are rejected.
-- **Money integrity.** Amounts are integer minor units (never floating point);
-  the ledger is append-only and every transfer is balanced by database
-  constraints (`amount > 0`, `balance >= 0` unless overdraft is allowed,
-  distinct debit/credit accounts).
+- **No secrets in the repo.** All configuration is environment-only.
+  `DATABASE_URL` and `LEDGER_API_TOKENS` are never logged.
+- **Authentication.** Optional static bearer-token auth on `/v1/*`
+  (`LEDGER_API_TOKENS`, comma-separated), compared in constant time. When
+  unset, the `/v1` surface is open and is expected to sit behind an API
+  gateway, service mesh, or mTLS. Operational endpoints (`/healthz`, `/readyz`,
+  `/version`, `/metrics`) are always unauthenticated.
+- **Structured audit trail.** One JSON log line per request (request id,
+  method, route, status, latency, client) — never request or response bodies.
+- **Least-privilege container.** `distroless/static`, non-root user, no shell,
+  static binary.
+- **Input hardening.** Request bodies capped at 1 MiB; unknown JSON fields
+  rejected; per-request timeout; path and query params strictly parsed.
+- **Money integrity.** Integer minor units only. The ledger is append-only and
+  every transfer is balanced by database `CHECK` constraints (`amount > 0`,
+  `balance >= 0` unless overdraft, distinct debit/credit accounts, at most one
+  reversal per transfer).
+- **Supply chain.** Pinned dependencies, Dependabot (gomod + actions + docker),
+  and `govulncheck` on every CI run.
 
-## Not in scope for this reference service
+## Out of scope
 
-- Authentication / authorization — expected to be enforced by an upstream API
-  gateway or service mesh. Add mTLS or a token check before exposing publicly.
 - Rate limiting — delegate to the ingress.
+- Multi-tenant authorization (which token may touch which account) — belongs in
+  a policy layer in front of this service.
