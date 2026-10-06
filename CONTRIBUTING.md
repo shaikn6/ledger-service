@@ -2,6 +2,8 @@
 
 Thanks for taking the time to contribute.
 
+Have a question or an idea? Start a [Discussion](https://github.com/shaikn6/ledger-service/discussions) before opening an issue.
+
 ## Development setup
 
 ```bash
