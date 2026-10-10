@@ -9,16 +9,28 @@ to [Semantic Versioning](https://semver.org).
 - `loadtest/` — concurrent-transfer load generator with a post-run
   balance-conservation check. `BENCHMARKS.md` records the results (~2,750 tx/s
   on a laptop, zero errors, zero drift; write path is Postgres-contention-bound).
+  The raw output and run date are not checked in; `BENCHMARKS.md` now says so.
+- `make bench` — runs the load generator with the documented flags against a
+  running instance.
+- `REQUIRE_DB_TESTS=1` — turns the "no `TEST_DATABASE_URL`" skip in the
+  Postgres-backed ledger tests into a failure. CI sets it, so the integration
+  suite can no longer be skipped silently there.
 
 ### Changed
-- Go 1.27.0 toolchain; `github.com/go-chi/chi/v5` v5.3.2,
-  `prometheus/client_golang` v1.24.1; `golang:1.27.0-alpine` build image;
+- Go 1.27.2 toolchain; `github.com/go-chi/chi/v5` v5.3.2,
+  `prometheus/client_golang` v1.24.1; `golang:1.27.2-alpine` build image;
   CI actions bumped (`checkout@v7`, `setup-go@v7`, `golangci-lint-action@v9`).
+- The ledger test skip message now states that the Postgres-backed tests did
+  not run and how to run them; `make test` prints a warning when
+  `TEST_DATABASE_URL` is empty.
+- README Go badge corrected from 1.26 to the version pinned in `go.mod`.
 
 ### Security
+- Go 1.27.2 for standard-library advisories that `govulncheck` reported as
+  reachable on 1.27.0 (9 in `net/http`, its HTTP/2 implementation,
+  `crypto/tls`, and `mime/multipart`, e.g. GO-2026-6603, GO-2026-6617).
 - Bump `golang.org/x/text` to v0.41.0 (GO-2026-5970 — reachable via pgx SCRAM
-  auth). Combined with the Go 1.27 toolchain, `govulncheck` reports no
-  vulnerabilities.
+  auth).
 - CI `docker` job now boots the built image against a Postgres service and
   checks `/readyz` + `/version`.
 

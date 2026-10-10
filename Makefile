@@ -4,13 +4,16 @@ COMMIT            := $(shell git rev-parse --short HEAD 2>/dev/null || echo none
 DATE              := $(shell date -u +%FT%TZ)
 LDFLAGS           := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 
-.PHONY: build test test-unit lint vet vuln cover run dev-db dev-db-stop tidy openapi-preview
+.PHONY: build test test-unit lint vet vuln cover run dev-db dev-db-stop tidy openapi-preview bench
 
 build:
 	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/ledger ./cmd/ledger
 
 ## test: run everything, including Postgres-backed integration tests
 test:
+ifeq ($(strip $(TEST_DATABASE_URL)),)
+	@echo "WARNING: TEST_DATABASE_URL is unset - Postgres-backed ledger tests will be SKIPPED (set REQUIRE_DB_TESTS=1 to fail instead)"
+endif
 	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test ./... -count=1 -race
 
 ## test-unit: run only tests that need no database
@@ -44,3 +47,7 @@ run:
 
 tidy:
 	go mod tidy
+
+## bench: run the load generator against a ledger-service already listening on :8080 (see BENCHMARKS.md)
+bench:
+	go run ./loadtest -accounts 500 -workers 32 -duration 15s
