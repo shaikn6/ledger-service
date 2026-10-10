@@ -9,6 +9,11 @@ instance, `DB_MAX_CONNS=40` · loopback network. Real RDS/Aurora on dedicated
 hardware with connection pooling goes materially higher; these are a laptop
 floor.
 
+The table below is a recorded run on that machine; the raw `loadtest` output
+and the date of the run are not checked into this repository, so treat the
+figures as indicative and re-measure with the steps under
+[Reproduce](#reproduce).
+
 ## Transfer throughput (the hard path — 1 tx, 2 ordered row locks, 7 statements)
 
 | Scenario | Accounts | Workers | Throughput | p50 | p99 | max | Errors | Balance |
@@ -48,5 +53,9 @@ run several times faster than writes.
 make dev-db
 DATABASE_URL='postgres://postgres:pg@localhost:55432/ledger?sslmode=disable' \
   DB_MAX_CONNS=40 go run ./cmd/ledger &
-go run ./loadtest -accounts 500 -workers 32 -duration 15s
+make bench   # go run ./loadtest -accounts 500 -workers 32 -duration 15s
 ```
+
+`make bench` runs the "Wide spread" scenario. For the other rows, pass the
+table's values as `-accounts` and `-workers` (other flags: `-addr`,
+`-duration`, `-amount`, `-seed`; see `go run ./loadtest -h`).

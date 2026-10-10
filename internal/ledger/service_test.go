@@ -14,12 +14,18 @@ import (
 
 // setup connects to TEST_DATABASE_URL, runs migrations, and truncates all
 // ledger tables so each test starts clean. Tests are skipped when the env var
-// is unset (e.g. a local run without Postgres); CI always sets it.
+// is unset (e.g. a local run without Postgres). Setting REQUIRE_DB_TESTS=1
+// turns that skip into a failure; CI sets both.
 func setup(t *testing.T) *ledger.Service {
 	t.Helper()
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
-		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
+		const msg = "TEST_DATABASE_URL not set: Postgres-backed ledger tests did NOT run " +
+			"(run `make dev-db && make test`, or set TEST_DATABASE_URL)"
+		if os.Getenv("REQUIRE_DB_TESTS") == "1" {
+			t.Fatal(msg + "; REQUIRE_DB_TESTS=1 makes this a failure")
+		}
+		t.Skip(msg)
 	}
 	ctx := context.Background()
 	pool, err := store.Open(ctx, dsn, store.PoolConfig{})

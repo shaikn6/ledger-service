@@ -1,7 +1,7 @@
 # ledger-service
 
 [![CI](https://github.com/shaikn6/ledger-service/actions/workflows/ci.yml/badge.svg)](https://github.com/shaikn6/ledger-service/actions)
-[![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.27.2-00ADD8?logo=go)](https://go.dev)
 [![Go Report Card](https://goreportcard.com/badge/github.com/shaikn6/ledger-service)](https://goreportcard.com/report/github.com/shaikn6/ledger-service)
 [![OpenAPI 3.1](https://img.shields.io/badge/OpenAPI-3.1-6BA539?logo=openapiinitiative&logoColor=white)](api/openapi.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -107,7 +107,8 @@ make dev-db-stop
 `internal/money` and `internal/config` are pure unit tests. `internal/httpapi`
 tests the HTTP layer against an in-memory fake (routing, error mapping,
 idempotency headers, bearer auth, metrics, OpenAPI serving). `internal/ledger`
-runs against a real Postgres (`TEST_DATABASE_URL`, skipped when unset) and
+runs against a real Postgres (`TEST_DATABASE_URL`; skipped with a message when
+unset, or failed when `REQUIRE_DB_TESTS=1`, which CI sets) and
 covers transfers and balance math, insufficient funds, currency mismatch,
 idempotent replay, idempotency conflict, reversals (restore balances, replay,
 already-reversed, reverse-a-reversal), keyset pagination, and a **40-goroutine
@@ -119,11 +120,13 @@ container smoke test on every push.
 ## Load
 
 [`loadtest/`](loadtest/) drives a running instance with concurrent transfers
-and checks balance conservation after every run. On a laptop (single instance,
-Postgres in Docker) it sustains **~2,750 transfers/sec** with **zero errors and
-zero balance drift** across ~175k transfers; the write path is contention-bound
-on Postgres, not CPU-bound, and the service holds at ~12 goroutines / ~38 MB
-RSS. Full numbers and analysis in [BENCHMARKS.md](BENCHMARKS.md).
+and checks balance conservation after every run. In a recorded run on an Apple
+M-series laptop (single instance, Postgres in Docker) it sustained **~2,750
+transfers/sec** with **zero errors and zero balance drift** across ~175k
+transfers; the write path was contention-bound on Postgres, not CPU-bound, and
+the service held at ~12 goroutines / ~38 MB RSS. Raw output is not checked in;
+re-measure with `make bench`. Full numbers and analysis in
+[BENCHMARKS.md](BENCHMARKS.md).
 
 ## Layout
 
