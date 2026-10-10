@@ -5,6 +5,8 @@ to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-10
+
 ### Added
 - `loadtest/` — concurrent-transfer load generator with a post-run
   balance-conservation check. `BENCHMARKS.md` records the results (~2,750 tx/s
