@@ -91,6 +91,7 @@ func main() {
 
 	fmt.Printf("requests         %d in %s\n", total, elapsed.Round(time.Millisecond))
 	fmt.Printf("throughput       %.0f req/s\n", float64(total)/elapsed.Seconds())
+	fmt.Printf("posted           %.0f tx/s\n", float64(ok)/elapsed.Seconds())
 	fmt.Printf("  posted         %d (%.1f%%)\n", ok, pct(ok, total))
 	fmt.Printf("  insufficient   %d (%.1f%%)   [expected — random pairs drain]\n", insufficient, pct(insufficient, total))
 	fmt.Printf("  409 conflict   %d\n", conflict)

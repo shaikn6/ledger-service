@@ -120,13 +120,15 @@ container smoke test on every push.
 ## Load
 
 [`loadtest/`](loadtest/) drives a running instance with concurrent transfers
-and checks balance conservation after every run. In a recorded run on an Apple
-M-series laptop (single instance, Postgres in Docker) it sustained **~2,750
-transfers/sec** with **zero errors and zero balance drift** across ~175k
-transfers; the write path was contention-bound on Postgres, not CPU-bound, and
-the service held at ~12 goroutines / ~38 MB RSS. Raw output is not checked in;
-re-measure with `make bench`. Full numbers and analysis in
-[BENCHMARKS.md](BENCHMARKS.md).
+and checks balance conservation after every run. Measured on an Apple M2 Pro
+laptop (single instance, Postgres 16 in Docker, loadtest on the same machine),
+3 runs of 15 s each: **~1,450-1,800 transfers/sec** with 50 hot accounts and
+**~2,300-2,400 transfers/sec** (median; best single run 2,950) with 500
+accounts, with **zero errors and zero balance drift** across ~365k transfers.
+The write path scales with account spread (row-lock contention), and the
+service held at ~12 goroutines / ~42 MB RSS. Run-to-run spread is wide, so see
+the ranges, hardware and method in [BENCHMARKS.md](BENCHMARKS.md); re-measure
+with `make bench`.
 
 ## Layout
 

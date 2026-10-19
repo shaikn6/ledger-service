@@ -5,6 +5,13 @@ to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Changed
+- `loadtest` prints posted transfers/sec separately from total requests/sec.
+- Throughput claims in `README.md` and `BENCHMARKS.md` replaced with figures
+  measured by the committed harness (3 runs per scenario, with ranges,
+  hardware and date). The earlier ~2,750 tx/s figure was not reproduced:
+  medians are ~2,300-2,400 tx/s at 500 accounts.
+
 ## [0.3.0] - 2026-10-10
 
 ### Added
