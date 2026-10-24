@@ -5,6 +5,10 @@ to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Security
+- Go 1.27.3 toolchain and `golang:1.27.3-alpine` build image for
+  `crypto/x509` advisory GO-2026-6809, which `govulncheck` reports on 1.27.2.
+
 ### Changed
 - `loadtest` prints posted transfers/sec separately from total requests/sec.
 - Throughput claims in `README.md` and `BENCHMARKS.md` replaced with figures
