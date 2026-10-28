@@ -1,4 +1,6 @@
 TEST_DATABASE_URL ?= postgres://postgres:pg@localhost:55432/ledger?sslmode=disable
+# `make run` honours a caller's DATABASE_URL; without one it uses the `make dev-db` Postgres.
+DATABASE_URL      ?= $(TEST_DATABASE_URL)
 VERSION           ?= dev
 COMMIT            := $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 DATE              := $(shell date -u +%FT%TZ)
@@ -43,7 +45,7 @@ dev-db-stop:
 	docker stop ledger-dev-pg
 
 run:
-	DATABASE_URL="$(TEST_DATABASE_URL)" go run -ldflags "$(LDFLAGS)" ./cmd/ledger
+	DATABASE_URL="$(DATABASE_URL)" go run -ldflags "$(LDFLAGS)" ./cmd/ledger
 
 tidy:
 	go mod tidy

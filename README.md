@@ -81,6 +81,8 @@ export DATABASE_URL='postgres://ledger:ledger@localhost:5432/ledger?sslmode=disa
 make run
 ```
 
+Without `DATABASE_URL`, `make run` uses the `make dev-db` Postgres on :55432.
+
 ### Configuration (environment)
 
 | Var | Default | |
