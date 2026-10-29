@@ -1,19 +1,55 @@
 # ledger-service
 
-[![CI](https://github.com/shaikn6/ledger-service/actions/workflows/ci.yml/badge.svg)](https://github.com/shaikn6/ledger-service/actions)
-[![Go](https://img.shields.io/badge/Go-1.27.3-00ADD8?logo=go)](https://go.dev)
-[![Go Report Card](https://goreportcard.com/badge/github.com/shaikn6/ledger-service)](https://goreportcard.com/report/github.com/shaikn6/ledger-service)
-[![OpenAPI 3.1](https://img.shields.io/badge/OpenAPI-3.1-6BA539?logo=openapiinitiative&logoColor=white)](api/openapi.yaml)
+[![CI](https://github.com/shaikn6/ledger-service/actions/workflows/ci.yml/badge.svg)](https://github.com/shaikn6/ledger-service/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Go 1.27.3](https://img.shields.io/badge/Go-1.27.3-00ADD8?logo=go&logoColor=white)](go.mod)
+[![Go Report Card](https://goreportcard.com/badge/github.com/shaikn6/ledger-service)](https://goreportcard.com/report/github.com/shaikn6/ledger-service)
 
-**A double-entry accounting ledger as a Go microservice.** Every movement of
-money is an idempotent `Transfer` that produces exactly two balanced
-`Posting`s — one debit, one credit — applied atomically with both account
-balances inside a single Postgres transaction. Transfers can be reversed
-exactly once with a compensating transfer.
+**A double-entry accounting ledger as a Go microservice: every movement of money
+is an idempotent transfer that writes two balanced postings and both account
+balances in one Postgres transaction.**
 
-This is the kind of service that sits under a payments or wallet product: the
-part that has to be *correct* under concurrency, not just fast.
+Transfers can be reversed exactly once with a compensating transfer. This is the
+kind of service that sits under a payments or wallet product: the part that has
+to be *correct* under concurrency, not just fast. The HTTP contract is
+[`api/openapi.yaml`](api/openapi.yaml).
+
+**At a glance** (details in [Tests](#tests) and [Load](#load)):
+
+| Check | Result |
+|---|---|
+| Concurrency test | 40 goroutines transferring in both directions; total balance is conserved and never goes negative (CI, `-race`, real Postgres) |
+| Load, 500 accounts | ~2,300-2,400 transfers/sec median on an Apple M2 Pro laptop, single instance |
+| Load, 50 hot accounts | ~1,450-1,800 transfers/sec |
+| Balance drift | zero errors and zero drift across ~365k transfers |
+
+## Why this exists
+
+Moving money looks simple until two requests hit the same accounts at once, a
+client retries after a timeout, or a refund races the original payment. This
+repository shows one way to get those cases right with nothing more than
+Postgres: integer minor units, ordered row locks, idempotency keys enforced by a
+unique index, an append-only postings table and database `CHECK` constraints
+behind the application checks.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    C["Client"] -->|"HTTP + Idempotency-Key"| R["internal/httpapi<br/>chi router, auth, request id, metrics"]
+    R --> S["internal/ledger<br/>Service: accounts, transfers, reversals"]
+    S -->|"pgx tx: SELECT ... FOR UPDATE<br/>lowest id first"| DB[("Postgres<br/>accounts, transfers, postings")]
+    M["cmd/ledger<br/>config, pool, migrate, serve"] --> ST["internal/store<br/>pgx pool + embedded SQL migrations"]
+    ST --> DB
+    M --> R
+    R -->|"/metrics"| P["Prometheus"]
+```
+
+A transfer runs in one read-committed transaction: both account rows are locked
+in a fixed order, the two postings are inserted, both balances are updated, and
+a duplicate `Idempotency-Key` returns the original transfer instead of moving
+funds twice. A serialization failure or deadlock restarts the transaction, up to
+five attempts.
 
 ## Why it's built this way
 
@@ -68,7 +104,7 @@ curl -s -X POST localhost:8080/v1/transfers/$TR/reversals -H "Idempotency-Key: r
 curl -s localhost:8080/v1/accounts/$DST | jq .balance          # 0
 ```
 
-## Run it
+## Quickstart
 
 ```bash
 docker compose up --build        # ledger on :8080, Postgres on :5432
@@ -144,6 +180,14 @@ internal/store/        pgx pool + embedded SQL migrator
 internal/ledger/       the domain: accounts, transfers, reversals, postings, pagination
 internal/httpapi/      chi router, handlers, middleware (request id, recover, auth, metrics)
 ```
+
+## What I would improve next
+
+- Transfers are strictly two-legged; multi-leg entries (fees, splits) would need a postings model with more than one debit or credit per transfer.
+- There is no pending or held state: a transfer is `posted` or `reversed`. Authorisation holds would need a separate state and expiry.
+- Authorization is a static bearer-token list. Which token may touch which account, and rate limiting, are left to a layer in front of the service (see [SECURITY.md](SECURITY.md)).
+- Load numbers come from one laptop with the load generator on the same machine; a run on separate hosts with a managed Postgres would give a fairer ceiling.
+- Downstream consumers have to poll; an outbox table that publishes posted transfers would let them subscribe instead.
 
 ## License
 
