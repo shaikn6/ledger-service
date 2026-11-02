@@ -17,6 +17,12 @@ import (
 
 const maxInt64 = int64(^uint64(0) >> 1)
 
+// MaxAmount bounds a single transfer's minor-unit amount. It is far below
+// int64/bigint max so that normal balance accumulation cannot overflow, while
+// a single absurd value is rejected as a validation error (400) instead of
+// reaching the database and surfacing as an opaque 500.
+const MaxAmount int64 = 1_000_000_000_000_000 // 10^15 minor units
+
 const accountByIDSQL = `
 	SELECT id, name, currency, balance, allow_overdraft, created_at
 	FROM accounts WHERE id = $1`
@@ -108,6 +114,8 @@ func validateTransfer(p NewTransferParams) error {
 		return ErrSameAccount
 	case p.Amount <= 0:
 		return invalid("amount must be a positive integer in minor units")
+	case p.Amount > MaxAmount:
+		return invalid("amount exceeds the maximum allowed value")
 	case !validCurrency(p.Currency):
 		return invalid("currency must be a 3-letter ISO 4217 code")
 	}

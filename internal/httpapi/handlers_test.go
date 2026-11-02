@@ -267,6 +267,10 @@ func TestBearerAuth(t *testing.T) {
 	if rec := do(t, srv, http.MethodGet, "/v1/accounts", nil, map[string]string{"Authorization": "Bearer nope"}); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("wrong token = %d, want 401", rec.Code)
 	}
+	// A bare token with no "Bearer " scheme prefix must be rejected.
+	if rec := do(t, srv, http.MethodGet, "/v1/accounts", nil, map[string]string{"Authorization": "secret-token"}); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("bare token without scheme = %d, want 401", rec.Code)
+	}
 	// Correct token -> through.
 	if rec := do(t, srv, http.MethodGet, "/v1/accounts", nil, map[string]string{"Authorization": "Bearer secret-token"}); rec.Code != http.StatusOK {
 		t.Fatalf("valid token = %d, want 200", rec.Code)

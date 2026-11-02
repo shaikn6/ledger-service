@@ -22,8 +22,8 @@ func bearerAuth(tokens []string) func(http.Handler) http.Handler {
 			return next
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-			if token == "" || !constantTimeContains(allowed, token) {
+			token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if !ok || token == "" || !constantTimeContains(allowed, token) {
 				w.Header().Set("WWW-Authenticate", `Bearer realm="ledger"`)
 				writeError(w, http.StatusUnauthorized, "unauthorized", "missing or invalid bearer token")
 				return
