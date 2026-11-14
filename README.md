@@ -1,5 +1,7 @@
 # ledger-service
 
+> **A double-entry ledger in Go that never loses a cent: idempotent transfers, ordered row locks, append-only postings on Postgres.**
+
 [![CI](https://github.com/shaikn6/ledger-service/actions/workflows/ci.yml/badge.svg)](https://github.com/shaikn6/ledger-service/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Go 1.27.3](https://img.shields.io/badge/Go-1.27.3-00ADD8?logo=go&logoColor=white)](go.mod)
