@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org).
 ## [Unreleased]
 
 ### Security
+- Go 1.27.4 toolchain and `golang:1.27.4-alpine` build image for `net/http`
+  advisory GO-2026-6859, which `govulncheck` reports on 1.27.3.
 - Go 1.27.3 toolchain and `golang:1.27.3-alpine` build image for
   `crypto/x509` advisory GO-2026-6809, which `govulncheck` reports on 1.27.2.
 
