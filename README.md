@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/shaikn6/ledger-service/actions/workflows/ci.yml/badge.svg)](https://github.com/shaikn6/ledger-service/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Go 1.27.3](https://img.shields.io/badge/Go-1.27.3-00ADD8?logo=go&logoColor=white)](go.mod)
+[![Go 1.27.4](https://img.shields.io/badge/Go-1.27.4-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Go Report Card](https://goreportcard.com/badge/github.com/shaikn6/ledger-service)](https://goreportcard.com/report/github.com/shaikn6/ledger-service)
 
 **A double-entry accounting ledger as a Go microservice: every movement of money
