@@ -13,8 +13,9 @@ to [Semantic Versioning](https://semver.org).
   and pagination logic is covered even when the integration suite is skipped.
 
 ### Fixed
-- `money.Parse` rejected a sign embedded in the fraction (e.g. `"10.-5"`)
-  instead of silently reading it as `995`; the fraction must now be digits only.
+- `money.Parse` now rejects a sign inside the number (e.g. `"10.-5"` or
+  `"--10.00"`) instead of silently reading it as a wrong positive value; the
+  whole and fraction parts must be digits only after a single leading sign.
 
 ### Security
 - Go 1.27.4 toolchain and `golang:1.27.4-alpine` build image for `net/http`

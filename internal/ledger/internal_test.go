@@ -148,8 +148,8 @@ func TestDecodeCursorEmptySentinel(t *testing.T) {
 }
 
 func TestDecodeCursorMalformed(t *testing.T) {
-	validTS := time.Now().UTC().Format(time.RFC3339Nano)
-	validID := uuid.New().String()
+	validTS := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC).Format(time.RFC3339Nano)
+	validID := uuid.MustParse("abcdef01-2345-6789-abcd-ef0123456789").String()
 	enc := func(s string) string { return base64.RawURLEncoding.EncodeToString([]byte(s)) }
 
 	cases := []struct {

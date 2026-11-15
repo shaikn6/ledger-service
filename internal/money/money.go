@@ -63,7 +63,14 @@ func Parse(s, currency string, fractionDigits int) (Amount, error) {
 	}
 	frac += strings.Repeat("0", fractionDigits-len(frac))
 
-	wv, err := strconv.ParseInt(strings.TrimPrefix(whole, "-"), 10, 64)
+	// The whole part must be digits only after the single leading sign is
+	// removed. ParseInt alone would accept a second sign (e.g. "--10.00"),
+	// which neg then flips back to a positive, wrong value.
+	wholeDigits := strings.TrimPrefix(whole, "-")
+	if !isDigits(wholeDigits) {
+		return Amount{}, ErrInvalidAmount
+	}
+	wv, err := strconv.ParseInt(wholeDigits, 10, 64)
 	if err != nil {
 		return Amount{}, ErrInvalidAmount
 	}
