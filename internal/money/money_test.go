@@ -42,6 +42,7 @@ func TestParse(t *testing.T) {
 		{"0.01", "USD", 2, 1, false},
 		{"5", "JPY", 0, 5, false},
 		{"10.001", "USD", 2, 0, true}, // too many fraction digits
+		{"10.-5", "USD", 2, 0, true},  // sign in fraction must be rejected, not read as 995
 		{"-10.00", "USD", 2, 0, true}, // non-positive
 		{"abc", "USD", 2, 0, true},    // unparseable
 		{"", "USD", 2, 0, true},       // empty

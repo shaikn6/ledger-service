@@ -56,6 +56,11 @@ func Parse(s, currency string, fractionDigits int) (Amount, error) {
 	if len(frac) > fractionDigits {
 		return Amount{}, fmt.Errorf("%w: too many fraction digits for %s", ErrInvalidAmount, currency)
 	}
+	// The fraction must be digits only. strconv.ParseInt would otherwise
+	// accept a sign (e.g. "10.-5"), silently producing the wrong value.
+	if !isDigits(frac) {
+		return Amount{}, ErrInvalidAmount
+	}
 	frac += strings.Repeat("0", fractionDigits-len(frac))
 
 	wv, err := strconv.ParseInt(strings.TrimPrefix(whole, "-"), 10, 64)
@@ -87,6 +92,15 @@ func (a Amount) String(fractionDigits int) string {
 		return fmt.Sprintf("%s%d %s", sign, v, a.Currency)
 	}
 	return fmt.Sprintf("%s%d.%0*d %s", sign, v/scale, fractionDigits, v%scale, a.Currency)
+}
+
+func isDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func pow10(n int) int64 {

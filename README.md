@@ -34,6 +34,11 @@ Postgres: integer minor units, ordered row locks, idempotency keys enforced by a
 unique index, an append-only postings table and database `CHECK` constraints
 behind the application checks.
 
+Most of my [other repositories](https://github.com/shaikn6?tab=repositories)
+are Python machine-learning and agent work; this is the backend-systems piece —
+a small Go service whose whole job is to move money under concurrency without
+losing or duplicating a cent.
+
 ## Architecture
 
 ```mermaid
