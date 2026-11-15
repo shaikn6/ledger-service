@@ -21,9 +21,9 @@ to be *correct* under concurrency, not just fast. The HTTP contract is
 | Check | Result |
 |---|---|
 | Concurrency test | 40 goroutines transferring in both directions; total balance is conserved and never goes negative (CI, `-race`, real Postgres) |
-| Load, 500 accounts | ~2,300-2,400 transfers/sec median on an Apple M2 Pro laptop, single instance |
-| Load, 50 hot accounts | ~1,450-1,800 transfers/sec |
-| Balance drift | zero errors and zero drift across ~365k transfers |
+| Load, 500 accounts | ~2,300-2,400 transfers/sec median on an Apple M2 Pro laptop, single instance (recorded 2026-10-19, see [BENCHMARKS.md](BENCHMARKS.md)) |
+| Load, 50 hot accounts | ~1,450-1,800 transfers/sec (recorded 2026-10-19) |
+| Balance drift | zero errors and zero drift across ~365k transfers (recorded 2026-10-19) |
 
 ## Why this exists
 
@@ -33,6 +33,11 @@ repository shows one way to get those cases right with nothing more than
 Postgres: integer minor units, ordered row locks, idempotency keys enforced by a
 unique index, an append-only postings table and database `CHECK` constraints
 behind the application checks.
+
+Most of my [other repositories](https://github.com/shaikn6?tab=repositories)
+are Python machine-learning and agent work; this is the backend-systems piece —
+a small Go service whose whole job is to move money under concurrency without
+losing or duplicating a cent.
 
 ## Architecture
 
@@ -57,7 +62,7 @@ five attempts.
 
 | Concern | Approach |
 |---------|----------|
-| **Money** | `int64` minor units and an ISO-4217 currency string. No floating point, anywhere. |
+| **Money** | `int64` minor units and an ISO-4217 currency string. Balances, postings and transfer arithmetic never touch floating point. (Prometheus histograms observe amounts as `float64`, as that API requires — that is metrics, not the money path.) |
 | **Balanced books** | Two postings per transfer, equal and opposite. `postings` is append-only. `accounts.balance` is a cached running total mutated only in the same transaction as its postings, so it can never drift from `SUM(postings)`. |
 | **Concurrency** | Both account rows are taken with `SELECT ... FOR UPDATE` in a deterministic order (lowest UUID first). Concurrent transfers over the same pair serialize on the row locks and cannot deadlock. Serialization failures (`40001`) and deadlocks (`40P01`) are retried with backoff. |
 | **Idempotency** | `transfers.idempotency_key` is `UNIQUE`. A retried request with the same key and body returns the original transfer; the same key with a *different* body is a `409`. The unique-violation race is handled. |
@@ -147,6 +152,9 @@ make dev-db-stop
 `internal/money` and `internal/config` are pure unit tests. `internal/httpapi`
 tests the HTTP layer against an in-memory fake (routing, error mapping,
 idempotency headers, bearer auth, metrics, OpenAPI serving). `internal/ledger`
+has database-free unit tests for its pure helpers (lock ordering, the keyset
+cursor and its malformed-input paths, pagination, retry and validation
+predicates), plus an integration suite that
 runs against a real Postgres (`TEST_DATABASE_URL`; skipped with a message when
 unset, or failed when `REQUIRE_DB_TESTS=1`, which CI sets) and
 covers transfers and balance math, insufficient funds, currency mismatch,

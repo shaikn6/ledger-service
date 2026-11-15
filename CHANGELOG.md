@@ -5,6 +5,18 @@ to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+- Database-free unit tests for the `internal/ledger` helpers: lock ordering
+  (`orderPair`), the keyset-pagination cursor (round trip and every malformed
+  path), `paginate`, `isRetryable`, `clampLimit`, `sameSpec` and the
+  `validateTransfer` branches. These run without Postgres, so the lock-ordering
+  and pagination logic is covered even when the integration suite is skipped.
+
+### Fixed
+- `money.Parse` now rejects a sign inside the number (e.g. `"10.-5"` or
+  `"--10.00"`) instead of silently reading it as a wrong positive value; the
+  whole and fraction parts must be digits only after a single leading sign.
+
 ### Security
 - Go 1.27.4 toolchain and `golang:1.27.4-alpine` build image for `net/http`
   advisory GO-2026-6859, which `govulncheck` reports on 1.27.3.
