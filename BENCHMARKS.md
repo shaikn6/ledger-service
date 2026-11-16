@@ -15,7 +15,9 @@ Measured on 2026-10-19. Each scenario was run 3 times for 15 s
 database; the table gives the median, with the min-max across the 3 runs in
 brackets. Throughput is posted transfers per second (`posted ... tx/s` in the
 loadtest output). Run-to-run spread on a laptop is large, so the range matters
-more than the median.
+more than the median. The raw per-run loadtest output is not committed; this
+table is the only record of those 12 runs, so treat the figures as reported,
+and re-run `make bench` on your own hardware rather than comparing against them.
 
 ## Transfer throughput (the hard path — 1 tx, 2 ordered row locks, 7 statements)
 
