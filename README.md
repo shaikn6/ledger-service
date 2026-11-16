@@ -191,7 +191,7 @@ internal/ledger/       the domain: accounts, transfers, reversals, postings, pag
 internal/httpapi/      chi router, handlers, middleware (request id, recover, auth, metrics)
 ```
 
-## What I would improve next
+## Limitations and what I would improve next
 
 - Transfers are strictly two-legged; multi-leg entries (fees, splits) would need a postings model with more than one debit or credit per transfer.
 - There is no pending or held state: a transfer is `posted` or `reversed`. Authorisation holds would need a separate state and expiry.
